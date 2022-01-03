@@ -107,11 +107,11 @@ def make_timestamps(prepro_para):
             # get VERY precise trace-time from the header
             for ii in range(nfiles):
                 try:
-                    tr = obspy.read(allfiles[ii])
+                    tr = obspy.read(allfiles[ii], headonly=True)
                     all_stimes[ii,0] = tr[0].stats.starttime-obspy.UTCDateTime(1970,1,1)
                     all_stimes[ii,1] = tr[0].stats.endtime-obspy.UTCDateTime(1970,1,1)
                 except Exception as e:
-                    print(e);continue
+                    print("Error while reading %s  " % allfiles[ii], e);continue
         else:
             # get rough estimates of the time based on the folder: need modified to accommodate your data
             for ii in range(nfiles):

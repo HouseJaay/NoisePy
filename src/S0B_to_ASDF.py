@@ -9,9 +9,6 @@ import noise_module
 import pandas as pd
 from mpi4py import MPI
 
-if not sys.warnoptions:
-    import warnings
-    warnings.simplefilter("ignore")
 os.system('export HDF5_USE_FILE=FALSE')
 
 '''
@@ -37,36 +34,36 @@ NOTE:
 tt0=time.time()
 
 # data/file paths
-rootpath  = '/Users/chengxin/Documents/SCAL'                           # absolute path for your project
-RAWDATA   = os.path.join(rootpath,'RAW_DATA')                           # dir where mseed/SAC files are located
-DATADIR   = os.path.join(rootpath,'CLEAN_DATA')                         # dir where cleaned data in ASDF format are going to be outputted
-locations = os.path.join(RAWDATA,'station.txt')                        # station info including network,station,channel,latitude,longitude,elevation
+rootpath  = '/home/shijie/data/SL_01/'                           # absolute path for your project
+RAWDATA   = os.path.join(rootpath,'passive_100Hz')                           # dir where mseed/SAC files are located
+DATADIR   = os.path.join(rootpath,'asdf_100Hz')                         # dir where cleaned data in ASDF format are going to be outputted
+locations = os.path.join(rootpath, 'metadata', 'station.csv')                        # station info including network,station,channel,latitude,longitude,elevation
 
 # useful parameters for cleaning the data
 input_fmt = 'sac'                                                       # input file format between 'sac' and 'mseed' 
-samp_freq = 10                                                          # targeted sampling rate
+samp_freq = 100                                                          # targeted sampling rate
 stationxml= False                                                       # station.XML file exists or not
 rm_resp   = 'no'                                                        # select 'no' to not remove response and use 'inv','spectrum','RESP', or 'polozeros' to remove response
 respdir   = os.path.join(rootpath,'resp')                               # directory where resp files are located (required if rm_resp is neither 'no' nor 'inv')
-freqmin   = 0.02                                                        # pre filtering frequency bandwidth
-freqmax   = 4                                                           # note this cannot exceed Nquist freq
+freqmin   = 10                                                        # pre filtering frequency bandwidth
+freqmax   = 40                                                           # note this cannot exceed Nquist freq
 flag      = False                                                       # print intermediate variables and computing time
 
 # having this file saves a tons of time: see L95-126 for why
 wiki_file = os.path.join(rootpath,'allfiles_time.txt')                  # file containing the path+name for all sac/mseed files and its start-end time      
-allfiles_path = os.path.join(DATADIR,'*'+input_fmt)                   # make sure all sac/mseed files can be found through this format
+allfiles_path = os.path.join(RAWDATA,'*'+input_fmt)                   # make sure all sac/mseed files can be found through this format
 messydata = True                                                       # set this to False when daily noise data directory is stored in sub-directory of Event_year_month_day 
 ncomp     = 1
 
 # targeted time range
-start_date = ['2010_12_10_0_0_0']                                       # start date of local data
-end_date   = ['2010_12_16_0_0_0']                                       # end date of local data
-inc_hours  = 8                                                          # sac/mseed file length for a continous recording
+start_date = ['2021_12_03_9_0_0']                                       # start date of local data
+end_date   = ['2021_12_04_3_0_0']                                       # end date of local data
+inc_hours  = 6                                                          # sac/mseed file length for a continous recording
 
 # get rough estimate of memory needs to ensure it now below up in S1
 cc_len    = 1800                                                        # basic unit of data length for fft (s)
 step      = 450                                                         # overlapping between each cc_len (s)
-MAX_MEM   = 4.0                                                         # maximum memory allowed per core in GB
+MAX_MEM   = 8.0                                                         # maximum memory allowed per core in GB
 
 ##################################################
 # we expect no parameters need to be changed below
@@ -90,7 +87,7 @@ prepro_para = {'RAWDATA':RAWDATA,
                'step':step,
                'ncomp':ncomp,
                'MAX_MEM':MAX_MEM}
-metadata = os.path.join(RAWDATA,'download_info.txt') 
+metadata = os.path.join(DATADIR,'download_info.txt') 
 
 ##########################################################
 #################PROCESSING SECTION#######################
@@ -138,12 +135,14 @@ if rank == 0:
         raise ValueError('Require %5.3fG memory but only %5.3fG provided)! Reduce inc_hours to avoid this issue!' % (memory_size,MAX_MEM))
 else:
     splits,all_chunk,all_stimes,allfiles = [None for _ in range(4)]
+    locs = None
 
 # broadcast the variables
 splits     = comm.bcast(splits,root=0)
 all_chunk = comm.bcast(all_chunk,root=0)
 all_stimes = comm.bcast(all_stimes,root=0)
 allfiles   = comm.bcast(allfiles,root=0)
+locs = comm.bcast(locs, root=0)
 
 # MPI: loop through each time-chunk
 for ick in range(rank,splits,size):
@@ -171,6 +170,9 @@ for ick in range(rank,splits,size):
 
     # loop through station
     nsta = len(locs)
+
+    ff=os.path.join(DATADIR,all_chunk[ick]+'T'+all_chunk[ick+1]+'.h5')
+    ds = pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3")
     for ista in range(nsta):
 
         # the station info:
@@ -179,10 +181,12 @@ for ick in range(rank,splits,size):
         comp    = locs.iloc[ista]['channel']
         if flag: print("working on station %s channel %s" % (station,comp)) 
 
-        # norrow down file list by using sta/net info in the file name
+        # narrow down file list by using sta/net info in the file name
         ttfiles  = [ifile for ifile in tfiles if station in ifile] 
         if not len(ttfiles): continue 
         tttfiles = [ifile for ifile in ttfiles if comp in ifile]
+        if not len(tttfiles): continue
+        tttfiles = [ifile for ifile in tttfiles if network in ifile]
         if not len(tttfiles): continue
 
         source = obspy.Stream()
@@ -209,19 +213,15 @@ for ick in range(rank,splits,size):
         if not len(tr):continue
 
         # ready for output
-        ff=os.path.join(RAWDATA,all_chunk[ick]+'T'+all_chunk[ick+1]+'.h5')
-        if not os.path.isfile(ff):
-            with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='w') as ds:
-                pass
 
-        with pyasdf.ASDFDataSet(ff,mpi=False,compression="gzip-3",mode='a') as ds:
-            # add the inventory for all components + all time of this tation         
-            try:ds.add_stationxml(inv1) 
-            except Exception: pass 
+        # add the inventory for all components + all time of this tation         
+        try:ds.add_stationxml(inv1) 
+        except Exception: pass 
 
-            tlocation = str('00')        
-            new_tags = '{0:s}_{1:s}'.format(comp.lower(),tlocation.lower())
-            ds.add_waveforms(tr,tag=new_tags)     
+        tlocation = str('00')        
+        new_tags = '{0:s}_{1:s}'.format(comp.lower(),tlocation.lower())
+        print("Writing %s %s %s" % (all_chunk[ick], network, station))
+        ds.add_waveforms(tr,tag=new_tags)     
     
     t3=time.time()
     print('it takes '+str(t3-t0)+' s to process '+str(inc_hours)+'h length in step 0B')
