@@ -68,7 +68,6 @@ def get_event_list(str1,str2,inc_hours):
         event.append(d1.strftime('%Y_%m_%d_%H_%M_%S'))
         d1+=dt
     event.append(d2.strftime('%Y_%m_%d_%H_%M_%S'))
-
     return event
 
 def make_timestamps(prepro_para):
@@ -705,6 +704,7 @@ def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
     substack_len  = D['substack_len']
     smoothspect_N = D['smoothspect_N']
 
+
     nwin  = fft1_smoothed_abs.shape[0]
     Nfft2 = fft1_smoothed_abs.shape[1]
 
@@ -798,7 +798,6 @@ def correlate_nonlinear_stack(fft1_smoothed_abs,fft2,D,Nfft,dataS_t):
       #      s_corr = selective_stack(s_corr,0.001)
       #      t_corr = dataS_t[0]
       #      n_corr = nwin
-
     # trim the CCFs in [-maxlag maxlag]
     t = np.arange(-Nfft2+1, Nfft2)*dt
     ind = np.where(np.abs(t) <= maxlag)[0]
@@ -1410,7 +1409,7 @@ def selective_stack(cc_array,epsilon):
     nstep=0
     newstack = np.mean(cc_array,axis=0)
     for i in range(cc_array.shape[0]):
-    	CC[i] = np.sum(np.multiply(stack,cc_array[i,:].T))
+        CC[i] = np.sum(np.multiply(stack,cc_array[i,:].T))
     ik = np.where(CC>=epsilon)
     newstack = np.mean(cc_array[ik,:],axis=0)
 
@@ -1674,6 +1673,61 @@ def selective_stack(cc_array,epsilon,cc_th):
 
     return newstack, nstep
 
+def rms_selection_stack(cc_array, idx1, idx2, idx3, g):
+    """
+    This is rms ratio selection stacking developed by Jinyun Xie et al. 2020. (10.1093/gji/ggaa232)
+    signal window [idx1:idx2]
+    precursory noise window [0:idx1]
+    trailing noise window [idx2:idx3]
+    PARAMETERS:
+    ----------------------
+    cc_array: numpy.ndarray contains the 2D cross correlation matrix
+    idx1: index at the begining of signal window
+    idx2: index at the end of signal window
+    idx3: end of trailing noise window
+    g: the threshold (G in equation 2 of Xie et al. 2020)
+
+    RETURNS:
+    ----------------------
+    newstack: numpy vector contains the stacked cross correlation
+    n_corr: number of CCFs used in stacking
+    """
+    ak = np.zeros(cc_array.shape[0]) # weighting parameter for each cross-correlation, 0 or 1
+    mid = cc_array.shape[1] // 2
+    sighlen = (idx2-idx1)
+    noisehlen =  (idx1 + idx3 - idx2)
+    signal = np.zeros(2*sighlen)
+    noise = np.zeros(2*noisehlen)
+
+    linearstack = np.mean(cc_array,axis=0)
+    signal[:sighlen] = linearstack[mid+idx1:mid+idx2] 
+    signal[sighlen:] = linearstack[mid-idx2:mid-idx1]
+    noise[:idx1] = linearstack[mid:mid+idx1]
+    noise[idx1:noisehlen] = linearstack[mid+idx2:mid+idx3]
+    noise[noisehlen:noisehlen+idx1] = linearstack[mid-idx1:mid]
+    noise[noisehlen+idx1:] = linearstack[mid-idx3:mid-idx2]
+    Rn = rms(signal) / rms(noise) # ratio of signal window rms to noise window rms
+
+    for k in range(cc_array.shape[0]):
+        sk = np.ones(cc_array.shape[0])
+        sk[k] = 0
+        kstack = np.mean(cc_array[sk==1],axis=0)
+        signal[:sighlen] = kstack[mid+idx1:mid+idx2] 
+        signal[sighlen:] = kstack[mid-idx2:mid-idx1]
+        noise[:idx1] = kstack[mid:mid+idx1]
+        noise[idx1:noisehlen] = kstack[mid+idx2:mid+idx3]
+        noise[noisehlen:noisehlen+idx1] = kstack[mid-idx1:mid]
+        noise[noisehlen+idx1:] = kstack[mid-idx3:mid-idx2]
+        Rk = rms(signal) / rms(noise) # ratio of signal window rms to noise window rms, stack without kth ccf
+        if Rk/Rn < g:
+            ak[k] = 1
+
+
+    newstack = np.mean(cc_array[ak==1],axis=0)
+    return newstack, np.sum(ak)
+
+def rms(data):
+    return np.sqrt(data.dot(data)/data.size)
 
 def get_cc(s1,s_ref):
     # returns the correlation coefficient between waveforms in s1 against reference
