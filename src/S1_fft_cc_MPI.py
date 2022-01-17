@@ -11,12 +11,8 @@ import pandas as pd
 import noise_module
 from mpi4py import MPI
 from scipy.fftpack.helper import next_fast_len
-import matplotlib.pyplot  as plt
-
-# ignore warnings
-if not sys.warnoptions:
-    import warnings
-    warnings.simplefilter("ignore")
+import matplotlib.pyplot as plt
+import NoisePy.src.parameters.para_S1 as par
 
 '''
 This main script of NoisePy:
@@ -39,107 +35,54 @@ NOTE:
     3. When "coherency" is preferred, please set "freq_norm" to "rma" and "time_norm" to "no" for better performance.
 '''
 
+##################################################
+# Import parameters from parameter file
+# Put parameter in the working directory
+
+CCFDIR = par.CCFDIR
+input_fmt = par.input_fmt
+flag = par.flag
+DATADIR = par.DATADIR
+MAX_MEM = par.MAX_MEM
+local_data_path = par.local_data_path
+ncomp = par.ncomp
+inc_hours = par.inc_hours
+cc_len = par.cc_len
+step = par.step
+samp_freq = par.samp_freq
+locs = par.locs
+acorr_only = par.acorr_only
+
 tt0=time.time()
-
-########################################
-#########PARAMETER SECTION##############
-########################################
-
-# absolute path parameters
-rootpath  = '/Users/chengxin/Documents/SCAL'                                # root path for this data processing
-CCFDIR    = os.path.join(rootpath,'CCF')                                    # dir to store CC data
-DATADIR   = os.path.join(rootpath,'RAW_DATA')                               # dir where noise data is located
-local_data_path = os.path.join(rootpath,'2016_*')                           # absolute dir where SAC files are stored: this para is VERY IMPORTANT and has to be RIGHT if input_fmt is not h5 for asdf!!!
-locations = os.path.join(DATADIR,'station.txt')                             # station info including network,station,channel,latitude,longitude,elevation: only needed when input_fmt is not h5 for asdf
-
-# some control parameters
-input_fmt   = 'h5'                                                          # string: 'h5', 'sac','mseed' 
-freq_norm   = 'rma'                                                         # 'no' for no whitening, or 'rma' for running-mean average, 'phase_only' for sign-bit normalization in freq domain.
-time_norm   = 'no'                                                          # 'no' for no normalization, or 'rma', 'one_bit' for normalization in time domain
-cc_method   = 'xcorr'                                                       # 'xcorr' for pure cross correlation, 'deconv' for deconvolution; FOR "COHERENCY" PLEASE set freq_norm to "rma", time_norm to "no" and cc_method to "xcorr"
-flag        = True                                                          # print intermediate variables and computing time for debugging purpose
-acorr_only  = False                                                         # only perform auto-correlation 
-xcorr_only  = True                                                          # only perform cross-correlation or not
-ncomp       = 3                                                             # 1 or 3 component data (needed to decide whether do rotation)
-
-# station/instrument info for input_fmt=='sac' or 'mseed'
-stationxml = False                                                          # station.XML file used to remove instrument response for SAC/miniseed data
-rm_resp   = 'no'                                                            # select 'no' to not remove response and use 'inv','spectrum','RESP', or 'polozeros' to remove response
-respdir   = os.path.join(rootpath,'resp')                                   # directory where resp files are located (required if rm_resp is neither 'no' nor 'inv')
-# read station list
-if input_fmt != 'h5':
-    if not os.path.isfile(locations): 
-        raise ValueError('Abort! station info is needed for this script')   
-    locs = pd.read_csv(locations)
-
-# pre-processing parameters 
-cc_len    = 1800                                                            # basic unit of data length for fft (sec)
-step      = 450                                                             # overlapping between each cc_len (sec)
-smooth_N  = 10                                                              # moving window length for time/freq domain normalization if selected (points)
-
-# cross-correlation parameters
-maxlag         = 200                                                        # lags of cross-correlation to save (sec)
-substack       = True                                                       # True = smaller stacks within the time chunk. False: it will stack over inc_hours
-                                                                            # for instance: substack=True, substack_len=cc_len means that you keep ALL of the correlations
-                                                                            # if substack=True, substack_len=2*cc_len, then you pre-stack every 2 correlation windows.
-substack_len   = cc_len                                                     # how long to stack over (for monitoring purpose): need to be multiples of cc_len
-smoothspect_N  = 10                                                         # moving window length to smooth spectrum amplitude (points)
-
-# criteria for data selection
-max_over_std = 10                                                           # threahold to remove window of bad signals: set it to 10*9 if prefer not to remove them
-
-# maximum memory allowed per core in GB
-MAX_MEM = 4.0
-
-# load useful download info if start from ASDF
-if input_fmt == 'h5':
-    dfile = os.path.join(DATADIR,'download_info.txt')
-    down_info = eval(open(dfile).read())
-    samp_freq = down_info['samp_freq']
-    freqmin   = down_info['freqmin']
-    freqmax   = down_info['freqmax']
-    start_date = down_info['start_date']
-    end_date   = down_info['end_date']
-    inc_hours  = down_info['inc_hours']  
-    ncomp      = down_info['ncomp'] 
-else:   # sac or mseed format
-    samp_freq = 20
-    freqmin   = 0.05
-    freqmax   = 2
-    start_date = ["2016_07_01_0_0_0"]
-    end_date   = ["2016_07_02_0_0_0"]
-    inc_hours  = 24
-dt = 1/samp_freq
-
 ##################################################
 # we expect no parameters need to be changed below
 
 # make a dictionary to store all variables: also for later cc
-fc_para={'samp_freq':samp_freq,
-         'dt':dt,
-         'cc_len':cc_len,
-         'step':step,
-         'freqmin':freqmin,
-         'freqmax':freqmax,
-         'freq_norm':freq_norm,
-         'time_norm':time_norm,
-         'cc_method':cc_method,
-         'smooth_N':smooth_N,
-         'rootpath':rootpath,
-         'CCFDIR':CCFDIR,
-         'start_date':start_date[0],
-         'end_date':end_date[0],
-         'inc_hours':inc_hours,
-         'substack':substack,
-         'substack_len':substack_len,
-         'smoothspect_N':smoothspect_N,
-         'maxlag':maxlag,
-         'max_over_std':max_over_std,
-         'ncomp':ncomp,
-         'stationxml':stationxml,
-         'rm_resp':rm_resp,
-         'respdir':respdir,
-         'input_fmt':input_fmt}
+fc_para={'samp_freq':par.samp_freq,
+         'dt':par.dt,
+         'cc_len':par.cc_len,
+         'step':par.step,
+         'freqmin':par.freqmin,
+         'freqmax':par.freqmax,
+         'freq_norm':par.freq_norm,
+         'time_norm':par.time_norm,
+         'cc_method':par.cc_method,
+         'smooth_N':par.smooth_N,
+         'rootpath':par.rootpath,
+         'CCFDIR':par.CCFDIR,
+         'start_date':par.start_date[0],
+         'end_date':par.end_date[0],
+         'inc_hours':par.inc_hours,
+         'substack':par.substack,
+         'substack_len':par.substack_len,
+         'smoothspect_N':par.smoothspect_N,
+         'maxlag':par.maxlag,
+         'max_over_std':par.max_over_std,
+         'ncomp':par.ncomp,
+         'stationxml':par.stationxml,
+         'rm_resp':par.rm_resp,
+         'respdir':par.respdir,
+         'input_fmt':par.input_fmt}
 # save fft metadata for future reference
 fc_metadata  = os.path.join(CCFDIR,'fft_cc_data.txt')       
 

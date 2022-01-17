@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from scipy.fftpack import next_fast_len
 from obspy.signal.filter import bandpass
 
+plt.rcParams['figure.dpi'] = 300
+
 '''
 Ensembles of plotting functions to display intermediate/final waveforms from the NoisePy package.
 by Chengxin Jiang @Harvard (May.04.2019)

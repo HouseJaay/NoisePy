@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="OPEN_SSH" host="gekko.hpc.ntu.edu.sg" id="a479f736-92ce-45f8-91a7-d6c39036e0b2" port="22" nameFormat="DESCRIPTIVE" username="shijie001" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>
