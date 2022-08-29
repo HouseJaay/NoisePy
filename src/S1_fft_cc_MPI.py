@@ -130,7 +130,7 @@ if input_fmt != 'h5': nsta = comm.bcast(nsta,root=0)
 
 # MPI loop: loop through each user-defined time chunk
 for ick in range (rank,splits,size):
-    t10=time.time()   
+    t10=time.time()
 
     #############LOADING NOISE DATA AND DO FFT##################
 
@@ -158,7 +158,7 @@ for ick in range (rank,splits,size):
         print('found %d stations in total'%nsta)
     else:
         sta_list = sorted(glob.glob(os.path.join(tdir[ick],'*'+input_fmt)))
-    if (len(sta_list)==0):
+    if len(sta_list) == 0:
         print('continue! no data in %s'%tdir[ick]);continue
 
     # crude estimation on memory needs (assume float32)
@@ -200,7 +200,7 @@ for ick in range (rank,splits,size):
             all_tags = [1]
             sta = tmps.split('/')[-1]
 
-        #----loop through each stream----
+        # ----loop through each stream----
         for itag in range(len(all_tags)):
             if flag:print("working on station %s and trace %s" % (sta,all_tags[itag]))
 

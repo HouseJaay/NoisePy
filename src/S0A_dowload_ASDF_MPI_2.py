@@ -46,13 +46,13 @@ tt0=time.time()
 
 # paths and filenames
 rootpath = '/media/shijie/NTU-HSJ-01/data/hawaii'                     # roothpath for the project
-direc  = os.path.join(rootpath,'DOWNLOAD_HHZ')                      # where to store the downloaded data
+direc  = os.path.join(rootpath,'DOWNLOAD_PT')                      # where to store the downloaded data
 dlist  = os.path.join(direc,'station.txt')                      # CSV file for station location info
 
 # download parameters
 client    = Client('IRIS')                                     # client/data center. see https://Users/chengxin/Documents/SCALdocs.obspy.org/packages/obspy.clients.fdsn.html for a list
 down_list = False                                               # download stations from a pre-compiled list or not
-flag      = True                                               # print progress when running the script; recommend to use it at the begining
+flag      = False                                               # print progress when running the script; recommend to use it at the begining
 samp_freq = 10                                                  # targeted sampling rate at X samples per seconds 
 rm_resp   = 'inv'                                                # select 'no' to not remove response and use 'inv','spectrum','RESP', or 'polozeros' to remove response
 respdir   = os.path.join(rootpath,'resp')                       # directory where resp files are located (required if rm_resp is neither 'no' nor 'inv')
@@ -61,11 +61,11 @@ freqmax   = 2                                                   # note this cann
 
 # targeted region/station information: only needed when down_list is False
 lamin,lamax,lomin,lomax = 18.9, 20.3, -156.0, -154.8               # regional box: min lat, min lon, max lat, max lon (-114.0)
-chan_list = ["HHZ"]                                             # channel if down_list=false (format like "HN?" not work here)
-net_list  = ["HV"]                                              # network list 
+chan_list = ["HHZ", "BHZ", "EHZ"]                                             # channel if down_list=false (format like "HN?" not work here)
+net_list  = ["PT"]                                              # network list
 sta_list  = ["*"]                                               # station (using a station list is way either compared to specifying stations one by one)
-#start_date = ["2013_01_01_0_0_0"]                               # start date of download
-start_date = ["2013_10_01_0_0_0"]
+start_date = ["2013_01_01_0_0_0"]                               # start date of download
+#start_date = ["2016_07_01_0_0_0"]
 end_date   = ["2021_12_01_0_0_0"]                               # end date of download
 inc_hours  = 24                                                 # length of data for each request (in hour)
 ncomp      = len(chan_list)
@@ -130,6 +130,7 @@ else:
     nsta=0
 
     # loop through specified network, station and channel lists
+    print(sta_list)
     for inet in net_list:
         for ista in sta_list:
             for ichan in chan_list:
@@ -294,8 +295,6 @@ for ick in range(rank,splits,size):
                     tlocation = location[ista]
                 new_tags = '{0:s}_{1:s}'.format(chan[ista].lower(),tlocation.lower())
                 ds.add_waveforms(tr,tag=new_tags)
-
-            if flag:
                 print(ds,new_tags);print('downloading data %6.2f s; pre-process %6.2f s' % ((t1-t0),(t2-t1)))
 
 tt1=time.time()

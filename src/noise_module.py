@@ -7,6 +7,7 @@ import time
 import pycwt
 import pyasdf
 import datetime
+import sys
 import numpy as np
 import pandas as pd
 from numba import jit
@@ -177,7 +178,7 @@ def preprocess_raw(st,inv,prepro_para,date_info):
     # check sampling rate and trace length
     st = check_sample_gaps(st,date_info)
     if len(st) == 0:
-        print('No traces in Stream: Continue!');return st
+        return st
     sps = int(st[0].stats.sampling_rate)
     station = st[0].stats.station
 
@@ -195,7 +196,13 @@ def preprocess_raw(st,inv,prepro_para,date_info):
         st[ii].data = scipy.signal.detrend(st[ii].data,type='linear')
 
     # merge, taper and filter the data
-    if len(st)>1:st.merge(method=1,fill_value=0)
+    if len(st)>1:
+        try:
+            st.merge(method=1,fill_value=0)
+        except Exception as e:
+            print(st, file=sys.stderr)
+            print(e, file=sys.stderr)
+            return obspy.Stream()
     st[0].taper(max_percentage=0.05,max_length=50)	# taper window
     st[0].data = np.float32(bandpass(st[0].data,pre_filt[0],pre_filt[-1],df=sps,corners=4,zerophase=True))
 
