@@ -26,6 +26,7 @@ respdir   = os.path.join(rootpath,'resp')                                   # di
 # pre-processing parameters
 cc_len    = 3*3600                                                            # basic unit of data length for fft (sec)
 step      = 1.5*3600                                                             # overlapping between each cc_len (sec)
+data_len = 24*3600 # length of each ambient noise files (sec)
 smooth_N  = 10                                                              # moving window length for time/freq domain normalization if selected (points)
 
 # cross-correlation parameters
@@ -35,6 +36,7 @@ substack       = True                                                       # Tr
                                                                             # if substack=True, substack_len=2*cc_len, then you pre-stack every 2 correlation windows.
 substack_len   = cc_len                                                     # how long to stack over (for monitoring purpose): need to be multiples of cc_len
 smoothspect_N  = 10                                                         # moving window length to smooth spectrum amplitude (points)
+stack_method = 'rms-select' # rms-select or linear
 
 # criteria for data selection
 max_over_std = 10                                                           # threahold to remove window of bad signals: set it to 10*9 if prefer not to remove them
@@ -42,8 +44,6 @@ max_over_std = 10                                                           # th
 # maximum memory allowed per core in GB
 MAX_MEM = 4.0
 
-starttime = UTCDateTime("2018-06-14")
-endtime = UTCDateTime("2018-07-27")
 samp_freq = 10
 dt = 1/samp_freq
 
