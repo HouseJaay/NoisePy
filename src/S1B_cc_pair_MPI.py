@@ -152,6 +152,8 @@ for ick in range(rank, npairs, size):
         s_corr, t_corr, n_corr = noise_module.correlate(
             white1[ind, :Nfft2], white2[ind, :Nfft2], fc_para, Nfft, data_t)
         s_corr_all.append(s_corr)
+    if not s_corr_all:
+        continue
     
     t = np.arange(-Nfft2+1, Nfft2)*dt
     ind = np.where(np.abs(t) <= maxlag)[0]
