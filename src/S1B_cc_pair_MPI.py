@@ -189,3 +189,7 @@ for ick in range(rank, npairs, size):
     stack_parameters = {'ngood': nstack, 'dist': dist, 'dt': dt, 'maxlag': maxlag,
                         'lonS':lon1, 'latS':lat1, 'lonR':lon2, 'latR':lat2}
     dso.add_auxiliary_data(data=stacked, data_type=data_type, path='ZZ', parameters=stack_parameters)
+
+comm.barrier()
+if rank == 0:
+    sys.exit()
