@@ -10,6 +10,7 @@ import noise_module
 from mpi4py import MPI
 import importlib
 from obspy import UTCDateTime
+import time
 
 
 try:
@@ -112,11 +113,11 @@ else:
     pairs = None
 pairs = comm.bcast(pairs, root=0)
 npairs = len(pairs)
-logging.basicConfig(filename=join(ccfdir, "node_%d.log"%rank), level=logging.WARNING)
+logging.basicConfig(filename=join(ccfdir, "node_%d.log"%rank), level=logging.INFO)
 
 for ick in range(rank, npairs, size):
     f1, f2 = pairs[ick][0], pairs[ick][1]
-    logging.info("Start %s %s" % (f1, f2))
+    logging.info("Start %s %s at %.3f s" % (f1, f2, time.time()))
     ds1 = pyasdf.ASDFDataSet(f1, mode='r', mpi=False)
     ds2 = pyasdf.ASDFDataSet(f2, mode='r', mpi=False)
     sta1 = ds1.waveforms.list()[0]
@@ -189,6 +190,7 @@ for ick in range(rank, npairs, size):
     stack_parameters = {'ngood': nstack, 'dist': dist, 'dt': dt, 'maxlag': maxlag,
                         'lonS':lon1, 'latS':lat1, 'lonR':lon2, 'latR':lat2}
     dso.add_auxiliary_data(data=stacked, data_type=data_type, path='ZZ', parameters=stack_parameters)
+    logging.info("Finish %s %s at %.3f s" % (f1, f2, time.time()))
 
 comm.barrier()
 if rank == 0:
