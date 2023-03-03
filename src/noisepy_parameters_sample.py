@@ -2,10 +2,10 @@ import os
 from obspy import UTCDateTime
 
 # absolute path parameters
-rootpath  = '/scratch/shijie001/data/hawaii'                               # root path for this data processing
+rootpath  = '/scratch/goxu/hao_shijie/huidong/phase1/'                               # root path for this data processing
 #rootpath = '/media/shijie/NTU-HSJ-01/data/hawaii_new/'
 CCFDIR    = os.path.join(rootpath,'CCF')                             # dir to store CC data
-DATADIR   = os.path.join(rootpath,'DOWNLOAD')                      # dir where noise data is located
+DATADIR   = os.path.join(rootpath,'phase1-h5-50Hz')                      # dir where noise data is located
 STACKDIR = os.path.join(rootpath,'STACK')
 
 # some control parameters
@@ -24,13 +24,12 @@ rm_resp   = 'no'                                                            # se
 respdir   = os.path.join(rootpath,'resp')                                   # directory where resp files are located (required if rm_resp is neither 'no' nor 'inv')
 
 # pre-processing parameters
-cc_len    = 3*3600                                                            # basic unit of data length for fft (sec)
-step      = 1.5*3600                                                             # overlapping between each cc_len (sec)
-data_len = 24*3600 # length of each ambient noise files (sec)
+cc_len    = 1*3600                                                            # basic unit of data length for fft (sec)
+step      = 0.5*3600                                                             # overlapping between each cc_len (sec)
 smooth_N  = 10                                                              # moving window length for time/freq domain normalization if selected (points)
 
 # cross-correlation parameters
-maxlag         = 200                                                        # lags of cross-correlation to save (sec)
+maxlag         = 6                                                        # lags of cross-correlation to save (sec)
 substack       = True                                                       # True = smaller stacks within the time chunk. False: it will stack over inc_hours
                                                                             # for instance: substack=True, substack_len=cc_len means that you keep ALL of the correlations
                                                                             # if substack=True, substack_len=2*cc_len, then you pre-stack every 2 correlation windows.
@@ -44,10 +43,10 @@ max_over_std = 10                                                           # th
 # maximum memory allowed per core in GB
 MAX_MEM = 4.0
 
-samp_freq = 10
+samp_freq = 50
 dt = 1/samp_freq
 
-freqmin, freqmax = 0.025, 2
+freqmin, freqmax = 0.1, 5
 loctype = "lonlat"
 
 # Parameters for rms selection stacking

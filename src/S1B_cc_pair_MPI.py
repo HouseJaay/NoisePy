@@ -51,6 +51,8 @@ def cut_trace(tr, starttime, endtime, cc_len, step, sps):
         elif t0 + cc_len > tr.stats.endtime:
             continue
         n0 = int((t0-tr.stats.starttime)*sps)
+        if n0+npts_seg > len(tr.data):
+            continue
         data[iseg, :] = tr.data[n0:n0+npts_seg]
         data_std[iseg] = np.max(np.abs(data[iseg])) / all_std
 
@@ -126,24 +128,31 @@ for ick in range(rank, npairs, size):
     tags2 = set(ds2.waveforms[sta2].get_waveform_tags())
     tags = list(tags1.intersection(tags2))
     s_corr_all = []
+
+    # loop over tags to reduce space requirement
+    # same tag should have same time duration
     for tag in tags:
-        t_start = UTCDateTime(*tuple(map(int, tag.split('_'))))
-        t_end = t_start + par.data_len
+        # t_start = UTCDateTime(*tuple(map(int, tag.split('_'))))
+        # t_end = t_start + par.data_len
         st1 = ds1.waveforms[sta1][tag]
         st2 = ds2.waveforms[sta2][tag]
         st1.merge(method=1, fill_value=0)
         st2.merge(method=1, fill_value=0)
+        t_start = max(st1[0].stats.starttime, st2[0].stats.starttime)
+        t_end = min(st1[0].stats.endtime, st2[0].stats.endtime)
         data_std1, data1, data_t = cut_trace(st1[0], t_start, t_end, cc_len, step, samp_freq)
         data_std2, data2, _ = cut_trace(st2[0], t_start, t_end, cc_len, step, samp_freq)
-        
+        del st1, st2
 
         white1 = noise_module.noise_processing(fc_para, data1)
+        del data1
         white1 = np.conjugate(white1)
         Nfft = white1.shape[1]
         Nfft2 = Nfft//2
         ind1 = np.where((data_std1<max_over_std)&(data_std1>0))[0]
 
         white2 = noise_module.noise_processing(fc_para, data2)
+        del data2
         ind2 = np.where((data_std2 < max_over_std) & (data_std2 > 0))[0]
         ind = np.intersect1d(ind1, ind2)
         if len(ind) < 1:
@@ -152,6 +161,7 @@ for ick in range(rank, npairs, size):
 
         s_corr, t_corr, n_corr = noise_module.correlate(
             white1[ind, :Nfft2], white2[ind, :Nfft2], fc_para, Nfft, data_t)
+        del white1, white2
         s_corr_all.append(s_corr)
     if not s_corr_all:
         continue
@@ -174,6 +184,8 @@ for ick in range(rank, npairs, size):
         idx1 = int(dist / vmax * (1 / dt))
         idx2 = int(dist / vmin * (1 / dt))
         idx3 = int(idx2 + maxperiod * 4 / dt)
+        if idx3 > int(par.maxlag * par.samp_freq):
+            idx3 = int(par.maxlag * par.samp_freq) - 1
         stacked, nstack = noise_module.rms_selection_stack(s_corr_all, idx1, idx2, idx3, 1)
         data_type = "Allstack_rmss"
     elif par.stack_method == 'linear':
