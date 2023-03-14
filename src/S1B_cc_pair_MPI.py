@@ -186,7 +186,12 @@ for ick in range(rank, npairs, size):
         idx3 = int(idx2 + maxperiod * 4 / dt)
         if idx3 > int(par.maxlag * par.samp_freq):
             idx3 = int(par.maxlag * par.samp_freq) - 1
-        stacked, nstack = noise_module.rms_selection_stack(s_corr_all, idx1, idx2, idx3, 1)
+        try:
+            stacked, nstack = noise_module.rms_selection_stack(s_corr_all, idx1, idx2, idx3, 1)
+        except ValueError as e:
+            print(f1, f2)
+            print("Please check the estimated signal window, the index is: %d, %d, %d" % (idx1, idx2, idx3))
+            print(e)
         data_type = "Allstack_rmss"
     elif par.stack_method == 'linear':
         stacked = np.sum(s_corr_all, axis=0)
@@ -196,8 +201,10 @@ for ick in range(rank, npairs, size):
     # output
     cdir = join(stackdir, sta1)
     fo = join(cdir, "%s_%s.h5" % (sta1, sta2))
-    if not exists(cdir):
+    try:
         os.mkdir(cdir)
+    except FileExistsError:
+        pass
     dso = pyasdf.ASDFDataSet(fo, mode='w', mpi=False)
     stack_parameters = {'ngood': nstack, 'dist': dist, 'dt': dt, 'maxlag': maxlag,
                         'lonS':lon1, 'latS':lat1, 'lonR':lon2, 'latR':lat2}
